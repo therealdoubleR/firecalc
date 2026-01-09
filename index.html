@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wealth Dashboard Pro v29</title>
+    <title>Wealth Dashboard Pro v30</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <style>
         :root { --primary: #2563eb; --success: #059669; --danger: #dc2626; --bg: #f1f5f9; --gold: #fef9c3; --gold-text: #854d0e; }
         body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); margin: 0; display: flex; height: 100vh; }
         .sidebar { width: 400px; background: white; border-right: 1px solid #e2e8f0; display: flex; flex-direction: column; padding: 20px; overflow-y: auto; }
-        .main { flex: 1; padding: 40px; overflow-y: auto; }
+        .main { flex: 1; padding: 40px; overflow-y: auto; position: relative; } /* Added relative for help btn positioning context */
         
         /* Widgets */
         .settings-widget { background: #f8fafc; border: 2px dashed #cbd5e1; border-radius: 12px; padding: 16px; margin-bottom: 12px; }
@@ -47,15 +47,34 @@
         .expense-details { color: #7f1d1d; font-size: 11px; margin-top: 4px; line-height: 1.4; }
         .expense-badge { display: inline-block; background: rgba(255,255,255,0.6); padding: 2px 6px; border-radius: 4px; font-weight: bold; margin-right: 5px; }
         
-        /* New Fire Stats Styles */
+        /* Fire Stats */
         .fire-row { margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid #bfdbfe; }
         .fire-row:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
         .fire-label { font-size: 11px; font-weight: 700; color: #1e3a8a; display: block; }
         .fire-sub { font-size: 10px; color: #64748b; font-style: italic; }
         .fire-val { font-size: 14px; font-weight: 900; color: #2563eb; float: right; }
+
+        /* HELP MODAL & BUTTON */
+        .help-btn { position: absolute; top: 20px; right: 40px; background: white; border: 1px solid #cbd5e1; padding: 8px 15px; border-radius: 20px; font-weight: bold; color: #475569; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.1); z-index: 500; font-size: 12px; display: flex; align-items: center; gap: 5px; }
+        .help-btn:hover { background: #f1f5f9; color: #1e293b; }
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); backdrop-filter: blur(2px); }
+        .modal-content { background-color: white; margin: 5% auto; padding: 30px; border-radius: 16px; width: 90%; max-width: 700px; max-height: 85vh; overflow-y: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.2); animation: fadeIn 0.2s ease-out; }
+        @keyframes fadeIn { from {opacity: 0; transform: translateY(10px);} to {opacity: 1; transform: translateY(0);} }
+        .close-btn { color: #94a3b8; float: right; font-size: 28px; font-weight: bold; cursor: pointer; line-height: 20px; }
+        .close-btn:hover { color: #0f172a; }
+        .help-section { margin-bottom: 25px; border-bottom: 1px solid #e2e8f0; padding-bottom: 20px; }
+        .help-section:last-child { border-bottom: none; }
+        .help-section h3 { margin-top: 0; color: #1e3a8a; font-size: 16px; display: flex; align-items: center; gap: 8px; }
+        .help-section p, .help-section li { font-size: 14px; color: #475569; line-height: 1.6; }
+        .help-icon { background: #eff6ff; color: #2563eb; width: 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; }
     </style>
 </head>
 <body onload="loadData()">
+
+<button class="help-btn" onclick="openHelp()">
+    <span style="background:#3b82f6; color:white; border-radius:50%; width:16px; height:16px; display:inline-flex; align-items:center; justify-content:center; font-size:10px;">?</span> 
+    Help & Guide
+</button>
 
 <div class="sidebar">
     <h2 style="margin-top:0">Planning</h2>
@@ -66,25 +85,21 @@
         <input type="number" id="annual-spend" value="60000" oninput="calculateFire()">
         
         <div style="background:white; padding:12px; border-radius:8px; margin-top:10px;">
-            
             <div class="fire-row">
                 <span class="fire-val" id="fire-trad">$1.5M</span>
                 <span class="fire-label">Standard (Age 60+)</span>
                 <span class="fire-sub">4% rule. Funds ~30 years.</span>
             </div>
-
             <div class="fire-row">
                 <span class="fire-val" id="fire-early" style="color:#059669;">$1.8M</span>
                 <span class="fire-label" style="color:#059669;">Early (Age < 50)</span>
                 <span class="fire-sub">3.25% rule. Funds 50+ years.</span>
             </div>
-
             <div class="fire-row">
                 <span class="fire-val" id="coast-num" style="color:#d97706;">$0</span>
                 <span class="fire-label" style="color:#d97706;">Coast FIRE</span>
                 <span class="fire-sub">Invested today to hit Standard by 65.</span>
             </div>
-
         </div>
     </div>
     
@@ -174,10 +189,58 @@
     </div>
 </div>
 
+<div id="helpModal" class="modal">
+    <div class="modal-content">
+        <span class="close-btn" onclick="closeHelp()">&times;</span>
+        <h1 style="margin-top:0; color:#1e293b; border-bottom:1px solid #e2e8f0; padding-bottom:15px; margin-bottom:20px;">Wealth Dashboard Guide</h1>
+        
+        <div class="help-section">
+            <h3><span class="help-icon">1</span> Understanding FIRE Targets</h3>
+            <p>The blue widget at the top-left calculates your "Freedom Numbers" based on your projected annual spend.</p>
+            <ul>
+                <li><strong>Standard (4% Rule):</strong> The classic safe withdrawal rate, designed to last 30 years. Best for retiring at 60+.</li>
+                <li><strong>Early (3.25% Rule):</strong> A safer withdrawal rate for early retirees (age 40-50). It is designed to survive longer timeframes (50+ years).</li>
+                <li><strong>Coast FIRE:</strong> The amount you need invested <em>today</em> to never save another penny. If you hit this number, you only need to earn enough to cover your daily bills—your retirement is already funded by compound interest.</li>
+            </ul>
+        </div>
+
+        <div class="help-section">
+            <h3><span class="help-icon">2</span> Asset Buckets & Strategy</h3>
+            <p>Click <strong>+ Add Asset Bucket</strong> to track different accounts. The tool treats them differently based on tax status:</p>
+            <ul>
+                <li><strong>Taxable:</strong> Standard brokerage accounts. These are spent <em>first</em> in retirement to let tax-advantaged accounts grow.</li>
+                <li><strong>Roth:</strong> Post-tax accounts. These are excellent for long-term growth as they are tax-free.</li>
+                <li><strong>401k/IRA:</strong> Pre-tax accounts. Access is restricted before age 59.5 in this simulation (triggering liquidity warnings).</li>
+            </ul>
+        </div>
+
+        <div class="help-section">
+            <h3><span class="help-icon">3</span> One-Time Expenses</h3>
+            <p>Planning a wedding, buying a boat, or paying for college? Add it to the One-Time Expenses widget.</p>
+            <ul>
+                <li><strong>Work Equivalent:</strong> Calculates how many months of your current savings rate were "burned" to buy this item.</li>
+                <li><strong>Opportunity Cost:</strong> Shows how much that money <em>would have grown to</em> by retirement if you had invested it instead.</li>
+            </ul>
+        </div>
+
+        <div class="help-section">
+            <h3><span class="help-icon">🔒</span> Privacy & Data</h3>
+            <p><strong>This tool is offline-first.</strong> All data is saved to your browser's "Local Storage." It is never sent to a cloud server or database. If you switch devices, use the <strong>Export/Import</strong> buttons to move your data.</p>
+        </div>
+    </div>
+</div>
+
 <script>
     let chart;
     let expenses = []; 
     let globalMonthlyContrib = 0; 
+
+    // HELP MODAL LOGIC
+    function openHelp() { document.getElementById('helpModal').style.display = 'block'; }
+    function closeHelp() { document.getElementById('helpModal').style.display = 'none'; }
+    window.onclick = function(event) {
+        if (event.target == document.getElementById('helpModal')) { closeHelp(); }
+    }
 
     function toggleGroup(id) { document.getElementById(`container-${id}`).classList.toggle('collapsed'); }
     function moveWidget(select) { document.getElementById(`container-${select.value}`).appendChild(select.closest('.asset-bucket')); updateCounts(); calculate(); }
@@ -218,7 +281,6 @@
         const yearsTo65 = Math.max(0, 65 - currentAge);
         const coastNum = tradNum / Math.pow(1 + (growth/100), yearsTo65);
         
-        // Smart formatting for Coast (K or M)
         let coastStr = '';
         if(coastNum >= 1000000) coastStr = '$' + (coastNum / 1000000).toFixed(2) + 'M';
         else coastStr = '$' + Math.round(coastNum / 1000) + 'k';
@@ -545,10 +607,10 @@
             annualSpend: document.getElementById('annual-spend').value,
             widgets: widgets, expenses: expenses
         };
-        localStorage.setItem('WealthPro_v29', JSON.stringify(state));
+        localStorage.setItem('WealthPro_v30', JSON.stringify(state));
     }
     function loadData() {
-        const d = JSON.parse(localStorage.getItem('WealthPro_v29'));
+        const d = JSON.parse(localStorage.getItem('WealthPro_v30'));
         if (!d) { addNewWidget(); return; }
         document.getElementById('user-age').value = d.age; document.getElementById('global-years').value = d.years;
         document.getElementById('longevity-age').value = d.longevity; document.getElementById('global-growth').value = d.growth;
@@ -562,12 +624,12 @@
     }
     function exportToFile() {
         saveData(); 
-        const blob = new Blob([localStorage.getItem('WealthPro_v29')], {type: "application/json"});
+        const blob = new Blob([localStorage.getItem('WealthPro_v30')], {type: "application/json"});
         const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = "wealth_data.json"; a.click();
     }
     function importFromFile(e) {
         const reader = new FileReader();
-        reader.onload = ev => { localStorage.setItem('WealthPro_v29', ev.target.result); location.reload(); };
+        reader.onload = ev => { localStorage.setItem('WealthPro_v30', ev.target.result); location.reload(); };
         reader.readAsText(e.target.files[0]);
     }
 </script>
