@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wealth Dashboard Pro v29</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <style>
+        :root { --primary: #2563eb; --success: #059669; --danger: #dc2626; --bg: #f1f5f9; --gold: #fef9c3; --gold-text: #854d0e; }
+        body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); margin: 0; display: flex; height: 100vh; }
+        .sidebar { width: 400px; background: white; border-right: 1px solid #e2e8f0; display: flex; flex-direction: column; padding: 20px; overflow-y: auto; }
+        .main { flex: 1; padding: 40px; overflow-y: auto; }
+        
+        /* Widgets */
+        .settings-widget { background: #f8fafc; border: 2px dashed #cbd5e1; border-radius: 12px; padding: 16px; margin-bottom: 12px; }
+        .fire-widget { background: #eff6ff; border: 2px solid #bfdbfe; border-radius: 12px; padding: 16px; margin-bottom: 12px; }
+        .widget { border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; margin-bottom: 12px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        
+        .widget input, .widget select, .settings-widget input, .settings-widget select, .fire-widget input { width: 100%; padding: 8px; margin: 4px 0 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px; box-sizing: border-box; }
+        label { font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase; }
+        .chart-container { background: white; padding: 24px; border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); margin-bottom: 30px; }
+        
+        /* Tables */
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; background: white; border-radius: 8px; overflow: hidden; }
+        th { background: #f8fafc; padding: 12px; text-align: left; font-size: 10px; color: #64748b; border-bottom: 2px solid #e2e8f0; }
+        td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; font-size: 12px; vertical-align: middle; }
+        
+        /* Buttons */
+        .btn { padding: 12px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; width: 100%; margin-bottom: 10px; }
+        .btn-add { background: var(--primary); color: white; }
+        .btn-del { background: #fee2e2; color: var(--danger); padding: 4px 8px; border-radius: 4px; float: right; cursor: pointer; }
+        .neg { color: var(--danger); font-size: 10px; font-weight: bold; margin-right: 4px; }
+        .pos { color: var(--success); font-size: 10px; font-weight: bold; margin-left: 4px; }
+        .bal-text { font-weight: 600; color: #334155; }
+        .section-header { margin-top: 20px; margin-bottom: 10px; font-size: 12px; font-weight: 900; color: #334155; letter-spacing: 1px; border-bottom: 2px solid #e2e8f0; padding-bottom: 5px; }
+        .warning-box { background: #fff1f2; color: #991b1b; padding: 15px; border-radius: 8px; border: 1px solid #fecaca; margin-bottom: 20px; font-size: 14px; display: none; }
+        .benchmark-box { font-size: 11px; color: #475569; background: #f8fafc; padding: 12px; border-radius: 8px; margin-top: 10px; border: 1px solid #e2e8f0; line-height: 1.4; }
+        
+        /* Layouts */
+        .group-header { font-size: 12px; font-weight: 700; color: #475569; padding: 10px; background: #f1f5f9; border-radius: 8px; margin-bottom: 8px; cursor: pointer; user-select: none; display: flex; justify-content: space-between; }
+        .group-header:hover { background: #e2e8f0; }
+        .group-content { margin-bottom: 15px; padding-left: 5px; border-left: 2px solid #e2e8f0; }
+        .collapsed { display: none; }
+        .crossover-row { background-color: var(--gold) !important; border-left: 4px solid var(--gold-text); }
+        .crossover-badge { display: block; font-size: 10px; color: var(--gold-text); font-weight: 800; text-transform: uppercase; margin-top: 4px; }
+        .expense-item { background: #fff1f2; border: 1px solid #fecaca; padding: 10px; border-radius: 6px; margin-bottom: 6px; font-size: 12px; position: relative; }
+        .expense-details { color: #7f1d1d; font-size: 11px; margin-top: 4px; line-height: 1.4; }
+        .expense-badge { display: inline-block; background: rgba(255,255,255,0.6); padding: 2px 6px; border-radius: 4px; font-weight: bold; margin-right: 5px; }
+        
+        /* New Fire Stats Styles */
+        .fire-row { margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid #bfdbfe; }
+        .fire-row:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+        .fire-label { font-size: 11px; font-weight: 700; color: #1e3a8a; display: block; }
+        .fire-sub { font-size: 10px; color: #64748b; font-style: italic; }
+        .fire-val { font-size: 14px; font-weight: 900; color: #2563eb; float: right; }
+    </style>
+</head>
+<body onload="loadData()">
+
+<div class="sidebar">
+    <h2 style="margin-top:0">Planning</h2>
+
+    <div class="fire-widget">
+        <div style="font-weight:900; color:#1e40af; font-size:12px; letter-spacing:1px; margin-bottom:10px;">FINANCIAL FREEDOM TARGETS</div>
+        <label>Projected Annual Spend</label>
+        <input type="number" id="annual-spend" value="60000" oninput="calculateFire()">
+        
+        <div style="background:white; padding:12px; border-radius:8px; margin-top:10px;">
+            
+            <div class="fire-row">
+                <span class="fire-val" id="fire-trad">$1.5M</span>
+                <span class="fire-label">Standard (Age 60+)</span>
+                <span class="fire-sub">4% rule. Funds ~30 years.</span>
+            </div>
+
+            <div class="fire-row">
+                <span class="fire-val" id="fire-early" style="color:#059669;">$1.8M</span>
+                <span class="fire-label" style="color:#059669;">Early (Age < 50)</span>
+                <span class="fire-sub">3.25% rule. Funds 50+ years.</span>
+            </div>
+
+            <div class="fire-row">
+                <span class="fire-val" id="coast-num" style="color:#d97706;">$0</span>
+                <span class="fire-label" style="color:#d97706;">Coast FIRE</span>
+                <span class="fire-sub">Invested today to hit Standard by 65.</span>
+            </div>
+
+        </div>
+    </div>
+    
+    <div class="settings-widget">
+        <div class="section-header">PROFILE</div>
+        <label>Current Age</label>
+        <input type="number" id="user-age" value="35" oninput="calculate()">
+        <label>Accumulation Years</label>
+        <input type="number" id="global-years" value="20" oninput="calculate()">
+        <label>Growth Rate (%)</label>
+        <input type="number" id="global-growth" value="7" oninput="calculate()">
+        
+        <div class="section-header">RETIREMENT</div>
+        <label>Live Until Age</label>
+        <input type="number" id="longevity-age" value="90" oninput="calculate()">
+        <label>Retirement Growth (%)</label>
+        <input type="number" id="retire-growth" value="4" oninput="calculate()">
+        <label>Withdraw Rate (%)</label>
+        <input type="number" id="withdraw-rate" value="4" oninput="calculate()">
+
+        <div class="section-header">ONE-TIME EXPENSES</div>
+        <input type="text" id="exp-name" placeholder="Name" style="width:100%;">
+        <div style="display:flex; gap:5px;">
+            <input type="number" id="exp-amount" placeholder="$" style="flex:1;">
+            <input type="number" id="exp-year" placeholder="Year" style="flex:1;">
+        </div>
+        <label>Deduct From:</label>
+        <select id="exp-bucket" style="width:100%; padding:8px; border:1px solid #cbd5e1; border-radius:6px;"></select>
+        <button class="btn" style="background:#ef4444; color:white; font-size:12px; padding:8px;" onclick="addExpense()">Add Expense</button>
+        <div id="expense-list"></div>
+
+        <div class="section-header">OPTIONS</div>
+        <div style="display: flex; align-items: center; justify-content: space-between; margin: 10px 0;">
+            <label style="margin:0;">Adjust for Inflation?</label>
+            <input type="checkbox" id="inflation-toggle" onchange="calculate()" style="width:auto; margin:0;">
+        </div>
+        <div id="inflation-input-container" style="display:none;">
+            <label>Inflation Rate (%)</label>
+            <input type="number" id="inflation-rate" value="3" oninput="calculate()" style="width:100%;">
+        </div>
+        <div class="benchmark-box">
+            <strong>S&P 500 Historical (20yr):</strong><br>
+            Nominal: ~10.2% | Inflation Adj: ~7.2%
+        </div>
+    </div>
+
+    <div id="groups-container">
+        <div class="group-header" onclick="toggleGroup('Taxable')">Taxable Assets <span id="count-Taxable">0</span></div>
+        <div id="container-Taxable" class="group-content"></div>
+        <div class="group-header" onclick="toggleGroup('Roth')">Roth Assets <span id="count-Roth">0</span></div>
+        <div id="container-Roth" class="group-content"></div>
+        <div class="group-header" onclick="toggleGroup('401k')">401k/IRA Assets <span id="count-401k">0</span></div>
+        <div id="container-401k" class="group-content"></div>
+    </div>
+
+    <button class="btn btn-add" onclick="addNewWidget()">+ Add Asset Bucket</button>
+    <div style="display: flex; justify-content: space-between; gap: 5px;">
+        <button class="btn" style="background:#64748b; color:white; font-size:11px;" onclick="exportToFile()">Export</button>
+        <button class="btn" style="background:#94a3b8; color:white; font-size:11px;" onclick="document.getElementById('importFile').click()">Import</button>
+    </div>
+    <input type="file" id="importFile" style="display:none;" accept=".json" onchange="importFromFile(event)">
+</div>
+
+<div class="main">
+    <div id="liquidity-warning" class="warning-box"></div>
+    <h1>Portfolio Lifecycle</h1>
+    <div class="chart-container"><canvas id="mainChart"></canvas></div>
+
+    <div class="chart-container">
+        <h2>Growth Amortization (Pre-Retirement)</h2>
+        <table id="annual-table">
+            <thead>
+                <tr><th>Year</th><th>Age</th><th>Contrib.</th><th>One-Time Exp.</th><th>Growth</th><th>End Balance</th></tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+    <div class="chart-container" style="border: 2px solid var(--success); background: #f0fdf4;">
+        <h2>Retirement De-accumulation Flow</h2>
+        <table id="retirement-table">
+            <thead>
+                <tr><th>Age</th><th>Annual Withdrawal</th><th>Sources</th><th>Taxable Flow</th><th>Roth Flow</th><th>401k Flow</th><th>Total Int.</th></tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    let chart;
+    let expenses = []; 
+    let globalMonthlyContrib = 0; 
+
+    function toggleGroup(id) { document.getElementById(`container-${id}`).classList.toggle('collapsed'); }
+    function moveWidget(select) { document.getElementById(`container-${select.value}`).appendChild(select.closest('.asset-bucket')); updateCounts(); calculate(); }
+    
+    function updateCounts() {
+        ['Taxable', 'Roth', '401k'].forEach(t => document.getElementById(`count-${t}`).innerText = document.getElementById(`container-${t}`).children.length || '');
+        updateExpenseDropdown(); 
+    }
+
+    function updateExpenseDropdown() {
+        const sel = document.getElementById('exp-bucket');
+        const currentVal = sel.value;
+        sel.innerHTML = '';
+        document.querySelectorAll('.asset-bucket').forEach(w => {
+            const name = w.querySelector('.w-name').value;
+            const id = w.id.replace('w-','');
+            const opt = document.createElement('option');
+            opt.value = id; opt.innerText = name;
+            sel.appendChild(opt);
+        });
+        if(currentVal) sel.value = currentVal;
+    }
+
+    function calculateFire() {
+        const spend = parseFloat(document.getElementById('annual-spend').value) || 0;
+        
+        // 1. Traditional (4%)
+        const tradNum = spend / 0.04;
+        document.getElementById('fire-trad').innerText = '$' + (tradNum / 1000000).toFixed(2) + 'M';
+        
+        // 2. Early / Safe (3.25%)
+        const earlyNum = spend / 0.0325;
+        document.getElementById('fire-early').innerText = '$' + (earlyNum / 1000000).toFixed(2) + 'M';
+        
+        // 3. Coast (to hit Traditional by 65)
+        const currentAge = parseFloat(document.getElementById('user-age').value) || 30;
+        const growth = parseFloat(document.getElementById('global-growth').value) || 7;
+        const yearsTo65 = Math.max(0, 65 - currentAge);
+        const coastNum = tradNum / Math.pow(1 + (growth/100), yearsTo65);
+        
+        // Smart formatting for Coast (K or M)
+        let coastStr = '';
+        if(coastNum >= 1000000) coastStr = '$' + (coastNum / 1000000).toFixed(2) + 'M';
+        else coastStr = '$' + Math.round(coastNum / 1000) + 'k';
+        
+        document.getElementById('coast-num').innerText = coastStr;
+    }
+
+    function addExpense() {
+        const name = document.getElementById('exp-name').value;
+        const amt = parseFloat(document.getElementById('exp-amount').value);
+        const yr = parseInt(document.getElementById('exp-year').value);
+        const bId = document.getElementById('exp-bucket').value;
+        if(name && amt && yr && bId) {
+            expenses.push({ id: Date.now(), name, amt, yr, bId });
+            calculate(); 
+            document.getElementById('exp-name').value = '';
+            document.getElementById('exp-amount').value = '';
+            document.getElementById('exp-year').value = '';
+        }
+    }
+
+    function removeExpense(id) { expenses = expenses.filter(e => e.id !== id); calculate(); }
+
+    function renderExpenses() {
+        const div = document.getElementById('expense-list');
+        div.innerHTML = '';
+        const accYears = parseFloat(document.getElementById('global-years').value) || 20;
+        const growth = parseFloat(document.getElementById('global-growth').value) || 7;
+        
+        expenses.forEach(e => {
+            let bName = "Unknown";
+            const w = document.getElementById(`w-${e.bId}`);
+            if(w) bName = w.querySelector('.w-name').value;
+
+            let timeCost = "N/A";
+            if(globalMonthlyContrib > 0) {
+                const monthsOfWork = e.amt / globalMonthlyContrib;
+                timeCost = `${monthsOfWork.toFixed(1)} mo. work`;
+            }
+
+            const yearsLost = Math.max(0, accYears - e.yr);
+            const futureVal = e.amt * Math.pow(1 + (growth/100), yearsLost);
+
+            div.insertAdjacentHTML('beforeend', `
+                <div class="expense-item">
+                    <div style="flex:1;">
+                        <div style="display:flex; justify-content:space-between;">
+                            <span style="font-weight:700; color:#334155;">${e.name} (Yr ${e.yr})</span>
+                            <span style="color:#dc2626;">-$${e.amt.toLocaleString()}</span>
+                        </div>
+                        <div class="expense-details">
+                            <span class="expense-badge">${timeCost}</span><br>
+                            <span class="expense-badge" style="margin-top:2px;">Lost Growth: $${Math.round(futureVal).toLocaleString()}</span>
+                        </div>
+                    </div>
+                    <button class="btn-del" onclick="removeExpense(${e.id})" style="margin-left:5px;">×</button>
+                </div>
+            `);
+        });
+    }
+
+    function calculate(shouldSave = true) {
+        if(shouldSave) saveData();
+        calculateFire();
+        const startAge = Math.max(1, parseInt(document.getElementById('user-age').value) || 0);
+        const accYears = Math.max(0, parseInt(document.getElementById('global-years').value) || 0);
+        const longevityAge = Math.max(startAge + accYears + 1, parseInt(document.getElementById('longevity-age').value) || 0);
+        const accGrowth = (parseFloat(document.getElementById('global-growth').value) || 0) / 100;
+        const inflEnabled = document.getElementById('inflation-toggle').checked;
+        const inflRate = inflEnabled ? (parseFloat(document.getElementById('inflation-rate').value) || 0) / 100 : 0;
+        const retGrowth = (parseFloat(document.getElementById('retire-growth').value) || 0) / 100;
+        const wRate = (parseFloat(document.getElementById('withdraw-rate').value) || 0) / 100;
+
+        document.getElementById('inflation-input-container').style.display = inflEnabled ? 'block' : 'none';
+        const totalMonths = (longevityAge - startAge) * 12;
+        if (totalMonths <= 0 || totalMonths > 1200) return;
+
+        const widgets = Array.from(document.querySelectorAll('.asset-bucket'));
+        const categories = { 'Taxable': new Array(totalMonths + 1).fill(0), 'Roth': new Array(totalMonths + 1).fill(0), '401k': new Array(totalMonths + 1).fill(0) };
+        let annualAmort = Array.from({length: accYears + 1}, () => ({ contrib: 0, interest: 0, balance: 0, expenses: 0 }));
+        let stopEvents = [];
+        const widgetTaxMap = {};
+
+        globalMonthlyContrib = 0;
+
+        widgets.forEach(w => {
+            const wId = w.id.replace('w-', '');
+            const tax = w.querySelector('.w-tax').value;
+            widgetTaxMap[wId] = tax;
+            const name = w.querySelector('.w-name').value;
+            let bal = parseFloat(w.querySelector('.w-init').value) || 0;
+            const contribAmt = parseFloat(w.querySelector('.w-contrib').value) || 0;
+            const stopYInput = w.querySelector('.w-stop').value;
+            const stopY = stopYInput === "" ? accYears : parseFloat(stopYInput);
+            const freq = w.querySelector('.w-freq').value;
+
+            let mContrib = 0;
+            if (freq === 'daily') mContrib = (contribAmt * 365.25) / 12;
+            else if (freq === 'annually') mContrib = contribAmt / 12;
+            else mContrib = contribAmt;
+
+            if (stopY > 0) globalMonthlyContrib += mContrib;
+
+            if (stopY <= accYears && stopY > 0) stopEvents.push({ x: Math.round(stopY * 12), label: name, yVal: 0 });
+
+            categories[tax][0] += bal;
+
+            for (let m = 1; m <= accYears * 12; m++) {
+                const y = Math.ceil(m / 12);
+                const widgetExpenses = expenses.filter(e => e.bId === wId && e.yr * 12 === m);
+                widgetExpenses.forEach(e => { 
+                    bal -= e.amt; 
+                    if(y <= accYears) annualAmort[y].expenses += e.amt; 
+                });
+                if (bal < 0) bal = 0;
+
+                const interest = bal * (accGrowth / 12);
+                const actualC = (m <= Math.round(stopY * 12)) ? mContrib : 0;
+                bal += interest + actualC;
+
+                let displayBal = inflRate > 0 ? (bal / Math.pow(1 + inflRate, m/12)) : bal;
+                categories[tax][m] += displayBal;
+                stopEvents.forEach(evt => { if(evt.x === m) evt.yVal += displayBal; });
+
+                if (y <= accYears) {
+                    annualAmort[y].contrib += actualC;
+                    annualAmort[y].interest += interest;
+                    if (m % 12 === 0) annualAmort[y].balance += displayBal;
+                }
+            }
+        });
+
+        stopEvents.forEach(evt => {
+            const m = evt.x;
+            if(m < categories.Taxable.length)
+                evt.yVal = categories.Taxable[m] + categories.Roth[m] + categories['401k'][m];
+        });
+
+        let b = { Taxable: categories.Taxable[accYears*12], Roth: categories.Roth[accYears*12], '401k': categories['401k'][accYears*12] };
+        const annualWithdraw = (b.Taxable + b.Roth + b['401k']) * wRate;
+
+        for (let m = (accYears * 12) + 1; m <= totalMonths; m++) {
+            const ageAtM = startAge + (m/12);
+            let needed = annualWithdraw / 12;
+            
+            const monthlyExpenses = expenses.filter(e => e.yr * 12 === m);
+            monthlyExpenses.forEach(e => {
+                const taxType = widgetTaxMap[e.bId] || 'Taxable'; 
+                b[taxType] -= e.amt;
+                if(b[taxType] < 0) b[taxType] = 0;
+            });
+
+            ['Taxable', 'Roth', '401k'].forEach(type => {
+                if (type === '401k' && ageAtM < 59.5) return;
+                let take = Math.min(b[type], needed);
+                b[type] -= take; needed -= take;
+            });
+
+            Object.keys(b).forEach(k => {
+                b[k] *= (1 + retGrowth/12);
+                categories[k][m] = Math.max(0, inflRate > 0 ? (b[k] / Math.pow(1 + inflRate, m/12)) : b[k]);
+            });
+        }
+
+        renderExpenses(); 
+        updateChart(categories, startAge, accYears, stopEvents);
+        updateGrowthTable(annualAmort, startAge, categories.Taxable[0] + categories.Roth[0] + categories['401k'][0]);
+        updateRetireTable({Taxable: categories.Taxable[accYears*12], Roth: categories.Roth[accYears*12], '401k': categories['401k'][accYears*12]}, startAge + accYears, longevityAge, retGrowth, wRate);
+    }
+
+    function updateChart(categories, startAge, accYears, stopEvents) {
+        const ctx = document.getElementById('mainChart').getContext('2d');
+        if (chart) chart.destroy();
+        const stopPoints = stopEvents.map(e => ({ x: e.x, y: e.yVal, name: e.label }));
+        const bgPlugin = {
+            id: 'customCanvasBackgroundColor',
+            beforeDatasetsDraw: (chart, args, options) => {
+                const {ctx, scales: {x, y}} = chart;
+                const xPosRetire = x.getPixelForValue(accYears * 12);
+                ctx.save();
+                ctx.fillStyle = 'rgba(5, 150, 105, 0.05)';
+                ctx.fillRect(xPosRetire, y.top, x.right - xPosRetire, y.bottom - y.top);
+                ctx.beginPath(); ctx.strokeStyle = '#059669'; ctx.lineWidth = 2;
+                ctx.moveTo(xPosRetire, y.top); ctx.lineTo(xPosRetire, y.bottom); ctx.stroke();
+                ctx.fillStyle = '#059669'; ctx.font = 'bold 12px Inter';
+                ctx.fillText('FINANCIAL INDEPENDENCE', xPosRetire + 8, y.top + 20);
+                ctx.restore();
+            }
+        };
+        chart = new Chart(ctx, {
+            type: 'line', plugins: [bgPlugin],
+            data: {
+                labels: Array.from({length: categories.Taxable.length}, (_, i) => i),
+                datasets: [
+                    ...Object.keys(categories).map((cat, i) => ({
+                        label: cat, data: categories[cat],
+                        borderColor: i === 0 ? '#2563eb' : i === 1 ? '#10b981' : '#f59e0b',
+                        pointRadius: 0, fill: true, tension: 0.1, order: 2
+                    })),
+                    {
+                        label: 'Stops', data: stopPoints, type: 'scatter',
+                        backgroundColor: '#dc2626', pointRadius: 6, pointHoverRadius: 9,
+                        pointBorderColor: 'white', pointBorderWidth: 2, order: 1
+                    }
+                ]
+            },
+            options: {
+                interaction: { mode: 'index', intersect: false }, 
+                plugins: { 
+                    tooltip: { 
+                        itemSort: (a, b) => b.raw - a.raw, 
+                        callbacks: { 
+                            title: ctx => `Age: ${startAge + Math.floor(ctx[0].parsed.x/12)}`,
+                            label: function(context) {
+                                if (context.dataset.type === 'scatter') return `🛑 Stopped: ${context.raw.name}`;
+                                return `${context.dataset.label}: $${context.raw.toLocaleString()}`;
+                            }
+                        } 
+                    } 
+                },
+                scales: {
+                    x: { ticks: { callback: v => (v % 12 === 0 ? startAge + (v/12) : null) }, title: {display:true, text: 'Age'} },
+                    y: { ticks: { callback: v => '$' + v.toLocaleString() } }
+                }
+            }
+        });
+    }
+
+    function updateGrowthTable(data, startAge, initialTotal) {
+        const tbody = document.querySelector('#annual-table tbody');
+        tbody.innerHTML = '';
+        let cumC = initialTotal; let cumI = 0; let crossoverHit = false;
+        data.forEach((d, i) => {
+            if (i === 0) return;
+            cumC += d.contrib; cumI += d.interest;
+            let highlight = ""; let badge = "";
+            let expStr = d.expenses > 0 ? `<span class="neg">-$${d.expenses.toLocaleString(undefined,{maximumFractionDigits:0})}</span>` : '-';
+            if (!crossoverHit && d.interest > d.contrib) { crossoverHit = true; highlight = 'class="crossover-row"'; badge = '<span class="crossover-badge">🚀 CROSSOVER</span>'; }
+            tbody.insertAdjacentHTML('beforeend', `<tr ${highlight}><td>${i}</td><td>Age ${startAge+i}</td><td>$${(d.contrib).toLocaleString(undefined,{maximumFractionDigits:0})}</td><td>${expStr}</td><td>$${d.interest.toLocaleString(undefined,{maximumFractionDigits:0})} ${badge}</td><td>$${d.balance.toLocaleString(undefined,{maximumFractionDigits:0})}</td></tr>`);
+        });
+    }
+
+    function updateRetireTable(bal, startAge, endAge, growth, rate) {
+        const tbody = document.querySelector('#retirement-table tbody');
+        tbody.innerHTML = '';
+        let b = {...bal};
+        const annualWithdraw = (b.Taxable + b.Roth + b['401k']) * rate;
+        let warning = "";
+        for (let age = startAge; age <= endAge; age++) {
+            let needed = annualWithdraw;
+            let deductions = { Taxable: 0, Roth: 0, '401k': 0 };
+            let sources = [];
+            ['Taxable', 'Roth', '401k'].forEach(type => {
+                if (type === '401k' && age < 59.5) return;
+                let take = Math.min(b[type], needed);
+                b[type] -= take; deductions[type] = take; needed -= take;
+                if (take > 0.01) sources.push(type);
+            });
+            if (needed > 0.01 && age < 59.5) warning = `⚠️ Liquidity Warning at age ${age}.`;
+            let interestMap = { Taxable: 0, Roth: 0, '401k': 0 };
+            let totalInterest = 0;
+            Object.keys(b).forEach(k => { let g = b[k] * growth; interestMap[k] = g; totalInterest += g; b[k] += g; });
+            const fmt = v => v.toLocaleString(undefined,{maximumFractionDigits:0});
+            const buildCol = (type) => {
+                let neg = deductions[type] > 0 ? `<span class="neg">-$${fmt(deductions[type])}</span>` : '';
+                let pos = interestMap[type] > 0 ? `<span class="pos">+$${fmt(interestMap[type])}</span>` : '';
+                return `${neg}<span class="bal-text">$${fmt(b[type])}</span>${pos}`;
+            };
+            tbody.insertAdjacentHTML('beforeend', `<tr><td>${age}</td><td style="color:var(--danger); font-weight:bold;">-$${fmt(annualWithdraw-needed)}</td><td style="font-size:10px;">${sources.join(', ')}</td><td>${buildCol('Taxable')}</td><td>${buildCol('Roth')}</td><td>${buildCol('401k')}</td><td style="color:var(--success); font-weight:bold;">+$${fmt(totalInterest)}</td></tr>`);
+            if (b.Taxable + b.Roth + b['401k'] <= 0) break;
+        }
+        document.getElementById('liquidity-warning').innerHTML = warning;
+        document.getElementById('liquidity-warning').style.display = warning ? 'block' : 'none';
+    }
+
+    function addNewWidget(data = null) {
+        const id = Date.now() + Math.random();
+        const taxGroup = data ? data.tax : 'Taxable';
+        const container = document.getElementById(`container-${taxGroup}`);
+        const html = `
+            <div class="widget asset-bucket" id="w-${id}">
+                <button class="btn-del" onclick="removeWidget('${id}')">×</button>
+                <input type="text" value="${data?.name || 'New Bucket'}" class="w-name" oninput="calculate(); updateExpenseDropdown();">
+                <label>Tax Status</label>
+                <select class="w-tax" onchange="moveWidget(this)">
+                    <option value="Taxable" ${data?.tax==='Taxable'?'selected':''}>Taxable</option>
+                    <option value="Roth" ${data?.tax==='Roth'?'selected':''}>Roth</option>
+                    <option value="401k" ${data?.tax==='401k'?'selected':''}>401k/IRA</option>
+                </select>
+                <div style="display:flex; gap:5px;">
+                    <div style="flex:1;"><label>Initial $</label><input type="number" value="${data?.init || 5000}" class="w-init" oninput="calculate()"></div>
+                    <div style="flex:1;"><label>Contrib $</label><input type="number" value="${data?.contrib || 100}" class="w-contrib" oninput="calculate()"></div>
+                </div>
+                <label>Frequency</label>
+                <select class="w-freq" onchange="calculate()">
+                    <option value="monthly" ${data?.freq==='monthly'?'selected':''}>Monthly</option>
+                    <option value="daily" ${data?.freq==='daily'?'selected':''}>Daily</option>
+                    <option value="annually" ${data?.freq==='annually'?'selected':''}>Annually</option>
+                </select>
+                <label>Stop Year (Optional)</label>
+                <input type="number" value="${data?.stop || ''}" placeholder="Follow Accumulation Years" class="w-stop" oninput="calculate()">
+            </div>`;
+        container.insertAdjacentHTML('beforeend', html);
+        updateCounts();
+        if(!data) calculate();
+    }
+
+    function removeWidget(id) { document.getElementById(`w-${id}`).remove(); updateCounts(); calculate(); }
+    
+    function saveData() {
+        const widgets = [];
+        document.querySelectorAll('.asset-bucket').forEach(w => {
+            widgets.push({
+                name: w.querySelector('.w-name').value, tax: w.querySelector('.w-tax').value,
+                init: w.querySelector('.w-init').value, contrib: w.querySelector('.w-contrib').value,
+                freq: w.querySelector('.w-freq').value, stop: w.querySelector('.w-stop').value
+            });
+        });
+        const state = {
+            age: document.getElementById('user-age').value, years: document.getElementById('global-years').value,
+            longevity: document.getElementById('longevity-age').value, growth: document.getElementById('global-growth').value,
+            inflated: document.getElementById('inflation-toggle').checked, inflRate: document.getElementById('inflation-rate').value,
+            retGrowth: document.getElementById('retire-growth').value, wRate: document.getElementById('withdraw-rate').value,
+            annualSpend: document.getElementById('annual-spend').value,
+            widgets: widgets, expenses: expenses
+        };
+        localStorage.setItem('WealthPro_v29', JSON.stringify(state));
+    }
+    function loadData() {
+        const d = JSON.parse(localStorage.getItem('WealthPro_v29'));
+        if (!d) { addNewWidget(); return; }
+        document.getElementById('user-age').value = d.age; document.getElementById('global-years').value = d.years;
+        document.getElementById('longevity-age').value = d.longevity; document.getElementById('global-growth').value = d.growth;
+        document.getElementById('inflation-toggle').checked = d.inflated; document.getElementById('inflation-rate').value = d.inflRate || 3;
+        document.getElementById('retire-growth').value = d.retGrowth || 4; document.getElementById('withdraw-rate').value = d.wRate || 4;
+        document.getElementById('annual-spend').value = d.annualSpend || 60000;
+        expenses = d.expenses || [];
+        d.widgets.forEach(w => addNewWidget(w));
+        renderExpenses();
+        calculate(false);
+    }
+    function exportToFile() {
+        saveData(); 
+        const blob = new Blob([localStorage.getItem('WealthPro_v29')], {type: "application/json"});
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = "wealth_data.json"; a.click();
+    }
+    function importFromFile(e) {
+        const reader = new FileReader();
+        reader.onload = ev => { localStorage.setItem('WealthPro_v29', ev.target.result); location.reload(); };
+        reader.readAsText(e.target.files[0]);
+    }
+</script>
+</body>
+</html>
